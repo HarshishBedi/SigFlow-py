@@ -1,0 +1,56 @@
+# data
+data/
+
+# Byte‑compiled / optimized files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Cython build artifacts
+build/
+dist/
+*.so
+*.o
+*.c
+*.cpp
+*.html   # Cython annotated HTML
+
+# Python packaging
+*.egg-info/
+*.eggs/
+*.egg
+*.whl
+
+# Virtual environments
+sigflow/
+.venv/
+
+# Output data (executions, snapshots, etc.)
+output/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# MyPy, Pylint, flake8 caches
+.mypy_cache/
+.pylint.d/
+
+# Logs
+*.log
+
+# IDE/editor
+.vscode/
+.idea/
+*.sublime-*
+*.swp
+*~
+
+# macOS
+.DS_Store
+
+# Environment variables
+.env
+.env.*
