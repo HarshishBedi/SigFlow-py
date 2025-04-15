@@ -26,11 +26,8 @@ dist/
 sigflow/
 .venv/
 
-# Data
-data/
-
 # Output data (executions, snapshots, etc.)
-output/
+
 
 # Test / coverage
 .pytest_cache/
