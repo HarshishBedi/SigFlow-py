@@ -1,5 +1,6 @@
 # data
-data/
+data/*
+!data/output
 
 # Byte‑compiled / optimized files
 __pycache__/
