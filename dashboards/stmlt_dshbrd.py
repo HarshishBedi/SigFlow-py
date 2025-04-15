@@ -4,6 +4,7 @@ VWAP Dashboard for Single Stock
 import os
 import streamlit as st
 import pandas as pd
+from pandas.errors import ParserError
 import altair as alt
 import datetime
 import sys
@@ -15,13 +16,23 @@ def load_data(path: str) -> pd.DataFrame:
     """
     Load VWAP CSV and return a DataFrame.
     """
-    df = pd.read_csv(path)
+    try:
+        df = pd.read_csv(path)
+    except ParserError:
+        # Fallback to python engine and skip malformed lines
+        df = pd.read_csv(path, engine="python", on_bad_lines="skip")
+    # Clean column names: strip whitespace and remove BOM characters
+    df.columns = df.columns.str.strip().str.replace('\ufeff', '')
     return df
 
 def main():
     """
     Streamlit app: display running VWAP time series for a selected stock.
     """
+    st.title("SigFlow - VWAP Dashboard")
+    st.write("Harshish Singh Bedi, 2025")
+    st.sidebar.title("Settings")
+
     output_dir = os.path.join("data", "output")
     csv_files = [f for f in os.listdir(output_dir) if f.endswith(".csv")]
     date_bases = [f.split(".")[0] for f in csv_files]
@@ -55,7 +66,22 @@ def main():
         else:
             st.error("Raw file for selected date not found.")
 
-    df = load_data(data_path) if data_path else pd.DataFrame()
+    # Load data or stop if missing
+    if data_path:
+        df = load_data(data_path)
+    else:
+        st.warning("Data file for selected date not found.")
+        st.stop()
+
+    # Stop if DataFrame is empty
+    if df.empty:
+        st.warning("No data loaded for selected date.")
+        st.stop()
+
+    # Ensure 'Stock Ticker' column exists
+    if "Stock Ticker" not in df.columns:
+        st.error(f"'Stock Ticker' column not found. Available columns: {', '.join(df.columns)}")
+        st.stop()
 
     # Sidebar: select a single ticker
     tickers = df["Stock Ticker"].unique().tolist()
