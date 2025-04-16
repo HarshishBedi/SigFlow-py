@@ -25,6 +25,7 @@ def load_data(path: str) -> pd.DataFrame:
     df.columns = df.columns.str.strip().str.replace('\ufeff', '')
     return df
 
+
 def main():
     """
     Streamlit app: display running VWAP time series for a selected stock.
@@ -49,22 +50,28 @@ def main():
     data_path = os.path.join(output_dir, data_filename) if data_filename else None
 
     # Parser parameters
+    if "parsing" not in st.session_state:
+        st.session_state["parsing"] = False
     st.sidebar.subheader("Parser Parameters")
     time_from = st.sidebar.text_input("Start time (HH:MM)", "09:30")
-    time_to = st.sidebar.text_input("End time (HH:MM)", "16:00")
-    granularity = st.sidebar.number_input("Granularity (sec)", min_value=1, value=3600)
-    ticker_input = st.sidebar.text_input("Ticker (leave blank for all)", "")
-    if st.sidebar.button("Run Parser"):
-        if raw_path:
-            try:
-                parse_main(raw_path, time_from, time_to, granularity, ticker_input or None)
-                st.success("Parsing complete! Data refreshed.")
-                load_data.clear()
-                # st.experimental_rerun()
-            except Exception as e:
-                st.error(f"Parser error: {e}")
-        else:
-            st.error("Raw file for selected date not found.")
+    time_to   = st.sidebar.text_input("End time (HH:MM)", "09:35")
+    # Allow pandas Timedelta alias for granularity (ns, us, ms, s)
+    gran_col1, _ = st.sidebar.columns([3, 1])
+    granularity = gran_col1.text_input("Granularity (e.g. '1ns', '100us', '1ms', '1s')", "1s")
+    ticker_input = st.sidebar.text_input("Ticker (leave blank for all)", "AAPL")
+    if st.sidebar.button("Run Parser", disabled=st.session_state.get("parsing", False)):
+        st.session_state["parsing"] = True
+        with st.spinner("Running parser..."):
+            if raw_path:
+                try:
+                    parse_main(raw_path, time_from, time_to, granularity, ticker_input or None)
+                    st.success("Parsing complete! Data refreshed.")
+                    load_data.clear()
+                except Exception as e:
+                    st.error(f"Parser error: {e}")
+            else:
+                st.error("Raw file for selected date not found.")
+        st.session_state["parsing"] = False
 
     # Load data or stop if missing
     if data_path:
@@ -113,6 +120,7 @@ def main():
         st.altair_chart(chart, use_container_width=True)
         st.subheader("Parsed Data")
         st.dataframe(df)
+
 
 if __name__ == "__main__":
     main()

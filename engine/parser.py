@@ -12,13 +12,14 @@ import struct
 import pandas as pd
 from tqdm import tqdm
 import argparse
+import re
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Parse ITCH and compute VWAP for custom time range and granularity.")
     parser.add_argument("fileName", help="Path to ITCH file")
     parser.add_argument("--time_from", default="09:30", help="Start time in HH:MM (default: 09:30)")
     parser.add_argument("--time_to", default="16:00", help="End time in HH:MM (default: 16:00)")
-    parser.add_argument("--granularity", type=int, default=3600, help="Bucket size in seconds (default: 3600)")
+    parser.add_argument("--granularity", type=str, default="3600s", help="Granularity with time unit (ns, us, ms, s), e.g. '3600s' (default: '3600s')")
     parser.add_argument(
         "--ticker",
         type=str,
@@ -26,6 +27,23 @@ def parse_args():
         help="Only include data for this stock ticker"
     )
     return parser.parse_args()
+
+def parse_granularity(gran_str):
+    import re
+    m = re.match(r'([\d\.]+)(ns|us|ms|s)?$', gran_str.strip())
+    if not m:
+        raise ValueError(f"Invalid granularity format: {gran_str}")
+    value, unit = m.groups()
+    value = float(value)
+    if unit is None or unit == "s":
+        seconds = value
+    elif unit == "ms":
+        seconds = value / 1000.0
+    elif unit == "us":
+        seconds = value / 1_000_000.0
+    elif unit == "ns":
+        seconds = value / 1_000_000_000.0
+    return seconds
 
 def time_str_to_ns(tstr):
     h, m = map(int, tstr.split(":"))
@@ -234,6 +252,20 @@ def VWAP(tradeTuple, runningValue = 0, runningQuantity = 0):
         average = 0
     return totalValue, totalQuantity, average
 
+def ns_to_time(ns):
+    """Convert a nanosecond timestamp to a human-readable time string with sub-second precision if needed."""
+    total_seconds = ns / 1_000_000_000
+    hours = int(total_seconds) // 3600
+    minutes = (int(total_seconds) % 3600) // 60
+    seconds = int(total_seconds) % 60
+    fraction = total_seconds - int(total_seconds)
+    if fraction > 0:
+        # Format fraction up to 9 decimal places and strip trailing zeros
+        frac_str = f"{fraction:.9f}"[2:].rstrip("0")
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}.{frac_str}"
+    else:
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
 def main(fileName, time_from, time_to, granularity, ticker=None):
     """
     Entry point: parse the given ITCH file and export hourly VWAP CSV.
@@ -241,7 +273,8 @@ def main(fileName, time_from, time_to, granularity, ticker=None):
     # Convert time range and granularity to nanoseconds
     start_ns = time_str_to_ns(time_from)
     end_ns = time_str_to_ns(time_to)
-    gran_ns = granularity * 1_000_000_000
+    seconds_val = parse_granularity(granularity)
+    gran_ns = int(seconds_val * 1_000_000_000)
 
     os.makedirs('data/output', exist_ok=True)
     # Determine output CSV path
@@ -262,17 +295,14 @@ def main(fileName, time_from, time_to, granularity, ticker=None):
     # Prepare output using custom time range and granularity
     # Determine bucket start times and labels
     sorted_buckets = sorted(next(iter(trades.values())).keys())
-    def ns_to_time(ns):
-        seconds = ns // 1_000_000_000
-        h = seconds // 3600
-        m = (seconds % 3600) // 60
-        s = seconds % 60
-        return f"{h:02d}:{m:02d}:{s:02d}"
+    bucket_labels = {bucket: ns_to_time(bucket) for bucket in sorted_buckets}
+    
     # Build data for DataFrame
     data = {"Stock Ticker": []}
     for bucket in sorted_buckets:
-        label = ns_to_time(bucket)
+        label = bucket_labels[bucket]
         data[label] = []
+
     # Compute running VWAP for each stock over buckets
     for stockID, bucket_dict in trades.items():
         data["Stock Ticker"].append(stock_map[stockID])
@@ -283,7 +313,7 @@ def main(fileName, time_from, time_to, granularity, ticker=None):
             runningValue += value
             runningQuantity += qty
             avg = runningValue / runningQuantity if runningQuantity else 0
-            data[ns_to_time(bucket)].append(avg)
+            data[bucket_labels[bucket]].append(avg)
     # Create DataFrame and write CSV
     output = pd.DataFrame(data)
     output.to_csv(outName, index=False)
