@@ -50,7 +50,7 @@ htmlcov/
 *~
 
 # macOS
-/.DS_Store
+.DS_Store
 
 # Environment variables
 .env
